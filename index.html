@@ -48,7 +48,13 @@
       // إعداد Supabase
       const supabaseUrl = 'https://ltefkkgtncxasvpncdrx.supabase.co';
       const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0ZWZra2d0bmN4YXN2cG5jZHJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4NjM2NDIsImV4cCI6MjA3MzQzOTY0Mn0.wtSPDJhDWINqxyMF0c1jwiqCbfAjzlSXoFS-Ay';
-      const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+      let supabase;
+      try {
+          supabase = supabase.createClient(supabaseUrl, supabaseKey);
+      } catch (e) {
+          console.error('خطأ في تهيئة Supabase:', e);
+          alert('خطأ في الاتصال بقاعدة البيانات. تحقق من الـ URL والمفتاح.');
+      }
 
       const surahs = [
           'الفاتحة', 'البقرة', 'آل عمران', 'النساء', 'المائدة', 'الأنعام', 'الأعراف', 'الأنفال', 'التوبة', 'يونس',
