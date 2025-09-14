@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة تحكم مراجعة حفظ القرآن مع Supabase</title>
+    <title>لوحة تحكم مراجعة حفظ القرآن مع Supabase مبسط</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f7f9fc; margin: 20px; padding: 0; direction: rtl; }
         h1 { text-align: center; color: #2c3e50; margin-bottom: 20px; }
@@ -20,9 +20,9 @@
             padding-right: 10px;
             line-height: 25px;
             transition: width 0.5s ease;
-            width: 0%; /* يبدأ عند 0 ثم تتغير */
+            width: 0%;
         }
-        .level-count { width: 80px; text-align: left; font-weight: normal; color: #222; white-space: nowrap; }
+        .level-count { width: 130px; text-align: left; font-weight: normal; color: #222; white-space: nowrap; }
         table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 40px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
         th { background-color: #3498db; color: white; }
@@ -31,7 +31,6 @@
         button:hover { background-color: #1c5980; }
         .container { max-width: 1200px; margin: auto; }
     </style>
-    <!-- Supabase JS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -44,22 +43,20 @@
         <table id="quranTable">
             <thead>
                 <tr>
-                    <th>رقم السورة</th>
-                    <th>اسم السورة</th>
-                    <th>مستوى الحفظ</th>
-                    <th>تاريخ المراجعة 1</th>
-                    <th>تاريخ المراجعة 2</th>
-                    <th>تاريخ المراجعة 3</th>
+                  <th>رقم السورة</th>
+                  <th>اسم السورة</th>
+                  <th>مستوى الحفظ</th>
+                  <th>تاريخ المراجعة 1</th>
+                  <th>تاريخ المراجعة 2</th>
+                  <th>تاريخ المراجعة 3</th>
                 </tr>
             </thead>
-            <tbody>
-            </tbody>
+            <tbody></tbody>
         </table>
     </div>
     <script>
-      // تهيئة Supabase
-      const supabaseUrl = SUPA_URL; // استبدل برابط مشروعك
-      const supabaseKey = SUPA_ANON_KEY; // استبدل بمفتاح API (أنون)
+      const supabaseUrl = 'https://YOUR_PROJECT.supabase.co';
+      const supabaseKey = 'YOUR_ANON_KEY';
       const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
       const surahs = [
@@ -92,7 +89,7 @@
           surahs.forEach((surah, index) => {
               const tr = document.createElement('tr');
               const selectHtml = `<select id=\"level-${index}\">\n                                    <option value=\"\">اختر المستوى</option>\n                                    <option value=\"1\">ضعيف</option>\n                                    <option value=\"2\">متوسط</option>\n                                    <option value=\"3\">جيد</option>\n                                    <option value=\"4\">ممتاز</option>\n                                </select>`;
-              tr.innerHTML = `\n                    <td>${index + 1}</td>\n                    <td>${surah}</td>\n                    <td>${selectHtml}</td>\n                    <td contenteditable=\"true\" id=\"review1-${index}\"></td>\n                    <td contenteditable=\"true\" id=\"review2-${index}\"></td>\n                    <td contenteditable=\"true\" id=\"review3-${index}\"></td>\n                `;
+              tr.innerHTML = `\n                  <td>${index + 1}</td>\n                  <td>${surah}</td>\n                  <td>${selectHtml}</td>\n                  <td contenteditable=\"true\" id=\"review1-${index}\"></td>\n                  <td contenteditable=\"true\" id=\"review2-${index}\"></td>\n                  <td contenteditable=\"true\" id=\"review3-${index}\"></td>\n              `;
               tbody.appendChild(tr);
 
               const select = tr.querySelector('select');
@@ -165,20 +162,19 @@
 
           levelStatsContainer.innerHTML = html;
 
-          // تنشيط الانيمشن التدريجي
+          // Animate bars
           const fills = levelStatsContainer.querySelectorAll('.level-fill');
           fills.forEach((fill, i) => {
               const widthPercent = fill.textContent;
-              const delay = i * 200; // لتدرج الانيميشن
               setTimeout(() => {
                   fill.style.width = widthPercent;
-              }, delay);
+              }, i * 200);
           });
       }
 
       async function saveToSupabase() {
           let userData = {};
-          for(let i=0; i<surahs.length; i++) {
+          for(let i=0; i < surahs.length; i++) {
               userData[i] = {
                   level: document.getElementById(`level-${i}`).value,
                   review1: document.getElementById(`review1-${i}`).textContent,
@@ -188,21 +184,22 @@
           }
           const { data, error } = await supabase.from('quran_review').upsert([
               {
-                  id: 'user1', // غير معرّف المستخدم حسب حاجتك
+                  id: 'user1',
                   data: userData
               }
           ], { onConflict: 'id' });
           if (error) {
-              console.error('حدث خطأ في الحفظ:', error);
+              console.error(error);
+              alert('حدث خطأ في الحفظ');
           } else {
-              alert('تم الحفظ على السحابة بنجاح');
+              alert('تم الحفظ على السحابة');
           }
       }
 
       async function loadFromSupabase() {
           const { data, error } = await supabase.from('quran_review').select('*').eq('id', 'user1');
           if (error) {
-              console.error('حدث خطأ في الاسترجاع:', error);
+              console.error(error);
               return;
           }
           if (data.length > 0) {
@@ -215,13 +212,13 @@
                   document.getElementById(`review3-${i}`).textContent = d.review3 || '';
               });
               updateLevelStats();
-              alert('تم الاسترجاع من السحابة بنجاح');
+              alert('تم الاسترجاع من السحابة');
           }
       }
 
       window.onload = () => {
           loadSurahs();
-          loadFromSupabase(); // استرجاع تلقائي عند التحميل
+          loadFromSupabase();
       };
 
       function addColumn() {
@@ -230,7 +227,6 @@
           const newHeader = document.createElement('th');
           newHeader.textContent = `تاريخ المراجعة ${newColumnCount}`;
           header.appendChild(newHeader);
-
           document.querySelectorAll('#quranTable tbody tr').forEach((tr, index) => {
               const newCell = document.createElement('td');
               newCell.contentEditable = true;
@@ -243,3 +239,10 @@
     </script>
 </body>
 </html>
+"""
+
+with open('quran_review_dashboard_supabase_fixed_final.html', 'w', encoding='utf-8') as f:
+    f.write(html_code_supabase_simplified)
+
+'quran_review_dashboard_supabase_fixed_final.html created'</parameter>
+</xai:function_call>
