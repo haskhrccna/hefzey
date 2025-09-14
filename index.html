@@ -2,42 +2,54 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>لوحة تحكم مراجعة حفظ القرآن</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحكم مراجعة حفظ القرآن مع Supabase وقاعدة بيانات</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #f7f9fc; margin: 20px; direction: rtl; }
-        h1 { text-align: center; color: #2c3e50; }
-        .container { max-width: 1200px; margin: auto; }
-        #levelStatsContainer { max-width: 600px; margin: 0 auto 30px auto; background: #fff; padding: 15px; border-radius: 10px; box-shadow: inset 0 0 10px #3498db; font-weight: bold; }
-        .level-row { display: flex; align-items: center; justify-content: space-between; margin: 8px 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f7f9fc; margin: 20px; padding: 0; direction: rtl; }
+        h1 { text-align: center; color: #2c3e50; margin-bottom: 20px; }
+        #levelStatsContainer { max-width: 600px; margin: 0 auto 30px auto; background: #ffffff; padding: 15px; border-radius: 10px; box-shadow: inset 0 0 10px #3498db; font-weight: bold; }
+        .level-row { display: flex; align-items: center; justify-content: space-between; margin: 8px 0; max-width: 100%; }
         .level-label { min-width: 120px; text-align: right; color: #444; font-weight: bold; }
         .level-percentage { height: 25px; border-radius: 12px; background: #ddd; flex-grow: 1; margin: 0 10px; position: relative; }
         .level-fill { height: 100%; border-radius: 12px; color: white; font-weight: bold; text-align: right; padding-right: 10px; line-height: 25px; transition: width 0.5s ease; width: 0%; }
-        .level-count { width: 130px; text-align: left; font-weight: normal; color: #222; }
+        .level-count { width: 130px; text-align: left; font-weight: normal; color: #222; white-space: nowrap; }
         table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 40px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
         th { background-color: #3498db; color: white; }
         td[contenteditable="true"] { background-color: #ecf0f1; cursor: text; }
+        button { background-color: #2980b9; color: white; border: none; padding: 10px 15px; margin: 15px auto; cursor: pointer; border-radius: 5px; font-size: 16px; display: block; width: 210px; transition: background-color 0.3s ease; }
+        button:hover { background-color: #1c5980; }
+        .container { max-width: 1200px; margin: auto; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <div class="container">
         <h1>لوحة تحكم لمراجعة حفظ القرآن الكريم</h1>
         <div id="levelStatsContainer"></div>
+        <button onclick="addColumn()">إضافة عمود مراجعة جديد</button>
+        <button onclick="saveToSupabase()">حفظ على السحابة</button>
+        <button onclick="loadFromSupabase()">استرجاع من السحابة</button>
         <table id="quranTable">
             <thead>
                 <tr>
-                  <th>رقم السورة</th>
-                  <th>اسم السورة</th>
-                  <th>مستوى الحفظ</th>
-                  <th>تاريخ المراجعة 1</th>
-                  <th>تاريخ المراجعة 2</th>
-                  <th>تاريخ المراجعة 3</th>
+                    <th>رقم السورة</th>
+                    <th>اسم السورة</th>
+                    <th>مستوى الحفظ</th>
+                    <th>تاريخ المراجعة 1</th>
+                    <th>تاريخ المراجعة 2</th>
+                    <th>تاريخ المراجعة 3</th>
                 </tr>
             </thead>
             <tbody></tbody>
         </table>
     </div>
     <script>
+      // إعداد Supabase
+      const supabaseUrl = SUPA_URL;
+      const supabaseKey = SUPA_ANON_KEY;
+      const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
       const surahs = [
           'الفاتحة', 'البقرة', 'آل عمران', 'النساء', 'المائدة', 'الأنعام', 'الأعراف', 'الأنفال', 'التوبة', 'يونس',
           'هود', 'يوسف', 'الرعد', 'إبراهيم', 'الحجر', 'النحل', 'الإسراء', 'الكهف', 'مريم', 'طه',
@@ -55,6 +67,14 @@
 
       const tbody = document.querySelector('#quranTable tbody');
       const levelStatsContainer = document.getElementById('levelStatsContainer');
+
+      function debounce(func, wait) {
+          let timeout;
+          return function(...args) {
+              clearTimeout(timeout);
+              timeout = setTimeout(() => func.apply(this, args), wait);
+          };
+      }
 
       function loadSurahs() {
           surahs.forEach((surah, index) => {
@@ -78,17 +98,45 @@
 
               const select = tr.querySelector('select');
               select.addEventListener('change', () => {
+                  saveState(index);
                   updateLevelStats();
               });
 
               for(let i = 3; i <= 5; i++) {
                   const cell = tr.cells[i];
-                  cell.addEventListener('input', () => {
-                      updateLevelStats();
-                  });
+                  cell.addEventListener('input', debounce(() => {
+                      saveReviewDate(index, i - 2, cell);
+                  }, 500));
               }
           });
+          restoreState();
           updateLevelStats();
+      }
+
+      function saveState(index) {
+          const select = document.getElementById(`level-${index}`);
+          localStorage.setItem(`level-${index}`, select.value);
+      }
+
+      function saveReviewDate(index, col, element) {
+          localStorage.setItem(`review-${index}-${col}`, element.textContent.trim());
+      }
+
+      function restoreState() {
+          surahs.forEach((_, index) => {
+              const level = localStorage.getItem(`level-${index}`);
+              if(level) {
+                  const select = document.getElementById(`level-${index}`);
+                  select.value = level;
+              }
+              for(let col = 1; col <= 3; col++) {
+                  const reviewDate = localStorage.getItem(`review-${index}-${col}`);
+                  if(reviewDate) {
+                      const row = tbody.children[index];
+                      row.cells[col + 2].textContent = reviewDate;
+                  }
+              }
+          });
       }
 
       function updateLevelStats() {
@@ -105,8 +153,10 @@
               levelStatsContainer.innerHTML = '<em>لم يتم تعيين مستويات الحفظ بعد.</em>';
               return;
           }
+
           const levelColors = { '1': '#e74c3c', '2': '#f39c12', '3': '#2980b9', '4': '#27ae60' };
           const levelNames = { '1': 'ضعيف', '2': 'متوسط', '3': 'جيد', '4': 'ممتاز' };
+
           let html = '';
           for(let level of ['1', '2', '3', '4']) {
               const percent = ((counts[level] / total) * 100).toFixed(1);
@@ -114,15 +164,83 @@
               html += `<div class=\"level-row\">
                   <span class=\"level-label\">${levelNames[level]}</span>
                   <div class=\"level-percentage\">
-                      <div class=\"level-fill\" style=\"background-color: ${levelColors[level]}; width: ${percent}%;\">${percent}%</div>
+                      <div class=\"level-fill\" style=\"background-color: ${levelColors[level]}; width: 0%;\">${percent}%</div>
                   </div>
                   <span class=\"level-count\">${countText}</span>
               </div>`;
           }
           levelStatsContainer.innerHTML = html;
+          const fills = levelStatsContainer.querySelectorAll('.level-fill');
+          fills.forEach((fill, i) => {
+              const widthPercent = fill.textContent;
+              setTimeout(() => {
+                  fill.style.width = widthPercent;
+              }, i * 200);
+          });
       }
 
-      window.onload = loadSurahs;
+      async function saveToSupabase() {
+          let userData = {};
+          for(let i=0; i<surahs.length; i++) {
+              userData[i] = {
+                  level: document.getElementById(`level-${i}`).value,
+                  review1: document.getElementById(`review1-${i}`).textContent,
+                  review2: document.getElementById(`review2-${i}`).textContent,
+                  review3: document.getElementById(`review3-${i}`).textContent
+              };
+          }
+          const { data, error } = await supabase.from('quran_review').upsert([{
+              id: 'user1',
+              data: userData
+          }], { onConflict: 'id' });
+          if (error) {
+              console.error(error);
+              alert('حدث خطأ في الحفظ');
+          } else {
+              alert('تم الحفظ على السحابة');
+          }
+      }
+
+      async function loadFromSupabase() {
+          const { data, error } = await supabase.from('quran_review').select('*').eq('id', 'user1');
+          if (error) {
+              console.error(error);
+              return;
+          }
+          if (data.length > 0) {
+              const userData = data[0].data;
+              Object.keys(userData).forEach(i => {
+                  const d = userData[i];
+                  document.getElementById(`level-${i}`).value = d.level || '';
+                  document.getElementById(`review1-${i}`).textContent = d.review1 || '';
+                  document.getElementById(`review2-${i}`).textContent = d.review2 || '';
+                  document.getElementById(`review3-${i}`).textContent = d.review3 || '';
+              });
+              updateLevelStats();
+              alert('تم الاسترجاع من السحابة');
+          }
+      }
+
+      window.onload = () => {
+          loadSurahs();
+          loadFromSupabase();
+      };
+
+      function addColumn() {
+          const header = document.querySelector('#quranTable thead tr');
+          const newColumnCount = header.cells.length - 2;
+          const newHeader = document.createElement('th');
+          newHeader.textContent = `تاريخ المراجعة ${newColumnCount}`;
+          header.appendChild(newHeader);
+          document.querySelectorAll('#quranTable tbody tr').forEach((tr, index) => {
+              const newCell = document.createElement('td');
+              newCell.contentEditable = true;
+              newCell.addEventListener('input', debounce(() => {
+                  saveReviewDate(index, newColumnCount, newCell);
+              }, 500));
+              tr.appendChild(newCell);
+          });
+      }
     </script>
 </body>
 </html>
